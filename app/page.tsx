@@ -23,6 +23,10 @@ import { title, subtitle } from "@/components/primitives";
 import { GithubIcon } from "@/components/icons";
 
 export default function Home() {
+  const URL_BACKEND_PROD = "https://trazabilidad-backend-nestjs.onrender.com";
+  const URL_BACKEND_DEV = "http://localhost:3000";
+  const IS_PROD = process.env.NEXT_PUBLIC_IS_PROD === "true";
+  const BASE_URL = IS_PROD ? URL_BACKEND_PROD : URL_BACKEND_DEV;
   const [dispositivos, setDispositivos] = useState<any[]>([]);
   const [historial, setHistorial] = useState<any[]>([]);
   const [id, setId] = useState("");
@@ -35,9 +39,7 @@ export default function Home() {
 
   const listarDispositivos = async () => {
     try {
-      const response = await axios.get(
-        "http://localhost:3000/trazabilidad/listar",
-      );
+      const response = await axios.get(`${BASE_URL}/trazabilidad/listar`);
 
       setDispositivos(response.data); // Usar directamente response.data
     } catch (error) {
@@ -47,7 +49,7 @@ export default function Home() {
 
   const registrarDispositivo = async () => {
     try {
-      await axios.post("http://localhost:3000/trazabilidad/registrar", {
+      await axios.post(`${BASE_URL}/trazabilidad/registrar`, {
         id,
         modelo,
         marca,
@@ -64,7 +66,7 @@ export default function Home() {
   const consultarHistorial = async () => {
     try {
       const response = await axios.get(
-        `http://localhost:3000/trazabilidad/historial/${id}`,
+        `${BASE_URL}/trazabilidad/historial/${id}`,
       );
 
       setHistorial(response.data); // Usar directamente response.data
@@ -76,7 +78,7 @@ export default function Home() {
   const consultarPorRango = async () => {
     try {
       const response = await axios.get(
-        `http://localhost:3000/trazabilidad/rango/${id}/${startDate}/${endDate}`,
+        `${BASE_URL}/trazabilidad/rango/${id}/${startDate}/${endDate}`,
       );
 
       setHistorial(response.data); // Usar directamente response.data
