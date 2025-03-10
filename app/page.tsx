@@ -17,6 +17,13 @@ import {
   TableHeader,
   TableRow,
 } from "@heroui/react";
+import {
+  Modal,
+  ModalContent,
+  ModalHeader,
+  ModalBody,
+  ModalFooter,
+} from "@heroui/modal";
 
 import { siteConfig } from "@/config/site";
 import { title, subtitle } from "@/components/primitives";
@@ -27,6 +34,7 @@ export default function Home() {
   const URL_BACKEND_DEV = "http://localhost:3000";
   const IS_PROD = process.env.NEXT_PUBLIC_IS_PROD === "true";
   const BASE_URL = IS_PROD ? URL_BACKEND_PROD : URL_BACKEND_DEV;
+
   const [dispositivos, setDispositivos] = useState<any[]>([]);
   const [historial, setHistorial] = useState<any[]>([]);
   const [id, setId] = useState("");
@@ -36,12 +44,14 @@ export default function Home() {
   const [origen, setOrigen] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedDevice, setSelectedDevice] = useState<any | null>(null);
 
   const listarDispositivos = async () => {
     try {
       const response = await axios.get(`${BASE_URL}/trazabilidad/listar`);
 
-      setDispositivos(response.data); // Usar directamente response.data
+      setDispositivos(response.data);
     } catch (error) {
       console.error("Error al listar dispositivos:", error);
     }
@@ -63,13 +73,31 @@ export default function Home() {
     }
   };
 
+  const actualizarDispositivo = async () => {
+    if (!selectedDevice) return;
+    try {
+      await axios.post(`${BASE_URL}/trazabilidad/actualizar`, {
+        id: selectedDevice.id,
+        modelo: selectedDevice.modelo,
+        marca: selectedDevice.marca,
+        caracteristica: selectedDevice.caracteristica,
+        origen: selectedDevice.origen,
+      });
+      listarDispositivos();
+      setIsModalOpen(false);
+      setSelectedDevice(null);
+    } catch (error) {
+      console.error("Error al actualizar dispositivo:", error);
+    }
+  };
+
   const consultarHistorial = async () => {
     try {
       const response = await axios.get(
         `${BASE_URL}/trazabilidad/historial/${id}`,
       );
 
-      setHistorial(response.data); // Usar directamente response.data
+      setHistorial(response.data);
     } catch (error) {
       console.error("Error al consultar historial:", error);
     }
@@ -81,7 +109,7 @@ export default function Home() {
         `${BASE_URL}/trazabilidad/rango/${id}/${startDate}/${endDate}`,
       );
 
-      setHistorial(response.data); // Usar directamente response.data
+      setHistorial(response.data);
     } catch (error) {
       console.error("Error al consultar por rango:", error);
     }
@@ -95,6 +123,16 @@ export default function Home() {
     setOrigen("");
     setStartDate("");
     setEndDate("");
+  };
+
+  const openEditModal = (dispositivo: any) => {
+    setSelectedDevice({ ...dispositivo });
+    setIsModalOpen(true);
+  };
+
+  const handleModalClose = () => {
+    setIsModalOpen(false);
+    setSelectedDevice(null);
   };
 
   useEffect(() => {
@@ -150,6 +188,7 @@ export default function Home() {
               <TableColumn>Característica</TableColumn>
               <TableColumn>Origen</TableColumn>
               <TableColumn>Timestamp</TableColumn>
+              <TableColumn>Acciones</TableColumn>
             </TableHeader>
             <TableBody>
               {dispositivos.map((dispositivo) => (
@@ -160,6 +199,15 @@ export default function Home() {
                   <TableCell>{dispositivo.caracteristica}</TableCell>
                   <TableCell>{dispositivo.origen}</TableCell>
                   <TableCell>{dispositivo.timestamp}</TableCell>
+                  <TableCell>
+                    <Button
+                      color="warning"
+                      size="sm"
+                      onPress={() => openEditModal(dispositivo)}
+                    >
+                      Editar
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -212,9 +260,72 @@ export default function Home() {
           </div>
         </CardBody>
       </Card>
+
+      {/* Modal de Edición */}
+      <Modal isOpen={isModalOpen} onClose={handleModalClose}>
+        <ModalContent>
+          <ModalHeader>Editar Dispositivo</ModalHeader>
+          <ModalBody>
+            {selectedDevice && (
+              <div className="flex flex-col gap-4">
+                <Input isDisabled label="ID" value={selectedDevice.id} />
+                <Input
+                  label="Modelo"
+                  value={selectedDevice.modelo}
+                  onChange={(e) =>
+                    setSelectedDevice({
+                      ...selectedDevice,
+                      modelo: e.target.value,
+                    })
+                  }
+                />
+                <Input
+                  label="Marca"
+                  value={selectedDevice.marca}
+                  onChange={(e) =>
+                    setSelectedDevice({
+                      ...selectedDevice,
+                      marca: e.target.value,
+                    })
+                  }
+                />
+                <Input
+                  label="Característica"
+                  value={selectedDevice.caracteristica}
+                  onChange={(e) =>
+                    setSelectedDevice({
+                      ...selectedDevice,
+                      caracteristica: e.target.value,
+                    })
+                  }
+                />
+                <Input
+                  label="Origen"
+                  value={selectedDevice.origen}
+                  onChange={(e) =>
+                    setSelectedDevice({
+                      ...selectedDevice,
+                      origen: e.target.value,
+                    })
+                  }
+                />
+              </div>
+            )}
+          </ModalBody>
+          <ModalFooter>
+            <Button color="danger" variant="light" onPress={handleModalClose}>
+              Cancelar
+            </Button>
+            <Button color="primary" onPress={actualizarDispositivo}>
+              Guardar
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
       <div className="inline-block max-w-xl text-center justify-center">
-        <span className={title()}>Make&nbsp;</span>
-        <span className={title({ color: "violet" })}>beautiful&nbsp;</span>
+        <span className={title()}>Make </span>
+        <span className={title({ color: "violet" })}>beautiful </span>
         <br />
         <span className={title()}>
           websites regardless of your design experience.
