@@ -30,8 +30,8 @@ import { title, subtitle } from "@/components/primitives";
 import { GithubIcon } from "@/components/icons";
 
 export default function Home() {
-  const URL_BACKEND_PROD = "https://trazabilidad-backend-nestjs.onrender.com";
-  const URL_BACKEND_DEV = "http://localhost:3000";
+  const URL_BACKEND_PROD = process.env.NEXT_PUBLIC_BACKEND_URL_PROD;
+  const URL_BACKEND_DEV = process.env.NEXT_PUBLIC_BACKEND_URL_DEV;
   const IS_PROD = process.env.NEXT_PUBLIC_IS_PROD === "true";
   const BASE_URL = IS_PROD ? URL_BACKEND_PROD : URL_BACKEND_DEV;
 
