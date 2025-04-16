@@ -1,10 +1,7 @@
+/* eslint-disable no-console */
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
-import { Link } from "@heroui/link";
-import { Snippet } from "@heroui/snippet";
-import { Code } from "@heroui/code";
-import { button as buttonStyles } from "@heroui/theme";
-import axios from "axios";
 import { useEffect, useState } from "react";
 import { Card, CardBody, CardHeader } from "@heroui/card";
 import { Input } from "@heroui/input";
@@ -24,10 +21,7 @@ import {
   ModalBody,
   ModalFooter,
 } from "@heroui/modal";
-
-import { siteConfig } from "@/config/site";
-import { title, subtitle } from "@/components/primitives";
-import { GithubIcon } from "@/components/icons";
+import axios from "axios";
 
 export default function Home() {
   const URL_BACKEND_PROD = process.env.NEXT_PUBLIC_BACKEND_URL_PROD;
@@ -37,15 +31,17 @@ export default function Home() {
 
   const [dispositivos, setDispositivos] = useState<any[]>([]);
   const [historial, setHistorial] = useState<any[]>([]);
+  const [qrUrl, setQrUrl] = useState<string>("");
   const [id, setId] = useState("");
   const [modelo, setModelo] = useState("");
   const [marca, setMarca] = useState("");
-  const [caracteristica, setCaracteristica] = useState("");
   const [origen, setOrigen] = useState("");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
+  const [latitud, setLatitud] = useState("");
+  const [longitud, setLongitud] = useState("");
+  const [evento, setEvento] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState<any | null>(null);
+  const [geoError, setGeoError] = useState<string>(""); // Para errores de geolocalización
 
   const listarDispositivos = async () => {
     try {
@@ -63,8 +59,10 @@ export default function Home() {
         id,
         modelo,
         marca,
-        caracteristica,
         origen,
+        latitud,
+        longitud,
+        evento,
       });
       listarDispositivos();
       clearForm();
@@ -80,8 +78,12 @@ export default function Home() {
         id: selectedDevice.id,
         modelo: selectedDevice.modelo,
         marca: selectedDevice.marca,
-        caracteristica: selectedDevice.caracteristica,
         origen: selectedDevice.origen,
+        latitud:
+          selectedDevice.latitud || selectedDevice.ubicacion.split(",")[0],
+        longitud:
+          selectedDevice.longitud || selectedDevice.ubicacion.split(",")[1],
+        evento: selectedDevice.evento,
       });
       listarDispositivos();
       setIsModalOpen(false);
@@ -91,27 +93,38 @@ export default function Home() {
     }
   };
 
-  const consultarHistorial = async () => {
+  const consultarHistorial = async (deviceId: string) => {
     try {
       const response = await axios.get(
-        `${BASE_URL}/trazabilidad/historial/${id}`,
+        `${BASE_URL}/trazabilidad/historial/${deviceId}`,
       );
 
       setHistorial(response.data);
+      const qrResponse = await axios.get(
+        `${BASE_URL}/trazabilidad/qr/${deviceId}`,
+      );
+
+      setQrUrl(qrResponse.data.qrUrl);
     } catch (error) {
       console.error("Error al consultar historial:", error);
     }
   };
 
-  const consultarPorRango = async () => {
-    try {
-      const response = await axios.get(
-        `${BASE_URL}/trazabilidad/rango/${id}/${startDate}/${endDate}`,
+  const getGeolocation = () => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setLatitud(position.coords.latitude.toFixed(4));
+          setLongitud(position.coords.longitude.toFixed(4));
+          setGeoError("");
+        },
+        (error) => {
+          setGeoError("No se pudo obtener la ubicación: " + error.message);
+        },
+        { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 },
       );
-
-      setHistorial(response.data);
-    } catch (error) {
-      console.error("Error al consultar por rango:", error);
+    } else {
+      setGeoError("Geolocalización no soportada por este navegador.");
     }
   };
 
@@ -119,20 +132,27 @@ export default function Home() {
     setId("");
     setModelo("");
     setMarca("");
-    setCaracteristica("");
     setOrigen("");
-    setStartDate("");
-    setEndDate("");
+    setLatitud("");
+    setLongitud("");
+    setEvento("");
+    setQrUrl("");
+    setGeoError("");
   };
 
   const openEditModal = (dispositivo: any) => {
-    setSelectedDevice({ ...dispositivo });
+    setSelectedDevice({
+      ...dispositivo,
+      latitud: dispositivo.ubicacion.split(",")[0],
+      longitud: dispositivo.ubicacion.split(",")[1],
+    });
     setIsModalOpen(true);
   };
 
   const handleModalClose = () => {
     setIsModalOpen(false);
     setSelectedDevice(null);
+    setGeoError("");
   };
 
   useEffect(() => {
@@ -142,6 +162,8 @@ export default function Home() {
   return (
     <section className="flex flex-col items-center justify-center gap-4 py-8 md:py-10">
       <h1 className="text-3xl font-bold mb-6">Trazabilidad de Dispositivos</h1>
+
+      {/* Formulario de Registro */}
       <Card className="mb-6">
         <CardHeader>Registrar Dispositivo</CardHeader>
         <CardBody>
@@ -162,14 +184,30 @@ export default function Home() {
               onChange={(e) => setMarca(e.target.value)}
             />
             <Input
-              placeholder="Característica"
-              value={caracteristica}
-              onChange={(e) => setCaracteristica(e.target.value)}
-            />
-            <Input
               placeholder="Origen"
               value={origen}
               onChange={(e) => setOrigen(e.target.value)}
+            />
+            <div className="flex gap-2">
+              <Input
+                placeholder="Latitud"
+                value={latitud}
+                onChange={(e) => setLatitud(e.target.value)}
+              />
+              <Input
+                placeholder="Longitud"
+                value={longitud}
+                onChange={(e) => setLongitud(e.target.value)}
+              />
+              <Button color="secondary" onPress={getGeolocation}>
+                Obtener Ubicación
+              </Button>
+            </div>
+            {geoError && <p className="text-red-500">{geoError}</p>}
+            <Input
+              placeholder="Evento (Salida/Recepción/Entrega)"
+              value={evento}
+              onChange={(e) => setEvento(e.target.value)}
             />
             <Button color="primary" onPress={registrarDispositivo}>
               Registrar
@@ -177,6 +215,8 @@ export default function Home() {
           </div>
         </CardBody>
       </Card>
+
+      {/* Lista de Dispositivos */}
       <Card className="mb-6">
         <CardHeader>Lista de Dispositivos</CardHeader>
         <CardBody>
@@ -185,8 +225,8 @@ export default function Home() {
               <TableColumn>ID</TableColumn>
               <TableColumn>Modelo</TableColumn>
               <TableColumn>Marca</TableColumn>
-              <TableColumn>Característica</TableColumn>
-              <TableColumn>Origen</TableColumn>
+              <TableColumn>Ubicación</TableColumn>
+              <TableColumn>Evento</TableColumn>
               <TableColumn>Timestamp</TableColumn>
               <TableColumn>Acciones</TableColumn>
             </TableHeader>
@@ -196,8 +236,8 @@ export default function Home() {
                   <TableCell>{dispositivo.id}</TableCell>
                   <TableCell>{dispositivo.modelo}</TableCell>
                   <TableCell>{dispositivo.marca}</TableCell>
-                  <TableCell>{dispositivo.caracteristica}</TableCell>
-                  <TableCell>{dispositivo.origen}</TableCell>
+                  <TableCell>{dispositivo.ubicacion}</TableCell>
+                  <TableCell>{dispositivo.evento}</TableCell>
                   <TableCell>{dispositivo.timestamp}</TableCell>
                   <TableCell>
                     <Button
@@ -207,6 +247,14 @@ export default function Home() {
                     >
                       Editar
                     </Button>
+                    <Button
+                      className="ml-2"
+                      color="secondary"
+                      size="sm"
+                      onPress={() => consultarHistorial(dispositivo.id)}
+                    >
+                      Ver Historial
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))}
@@ -214,49 +262,49 @@ export default function Home() {
           </Table>
         </CardBody>
       </Card>
+
+      {/* Historial y QR */}
       <Card>
-        <CardHeader>Consultar Historial</CardHeader>
+        <CardHeader>Historial del Dispositivo</CardHeader>
         <CardBody>
           <div className="flex flex-col gap-4">
-            <Input
-              placeholder="ID"
-              value={id}
-              onChange={(e) => setId(e.target.value)}
-            />
-            <Button color="secondary" onPress={consultarHistorial}>
-              Consultar Historial
-            </Button>
-            <Input
-              placeholder="Fecha Inicio (ISO)"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-            />
-            <Input
-              placeholder="Fecha Fin (ISO)"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-            />
-            <Button color="success" onPress={consultarPorRango}>
-              Consultar por Rango
-            </Button>
-            <Table aria-label="Tabla de historial">
-              <TableHeader>
-                <TableColumn>Timestamp</TableColumn>
-                <TableColumn>Modelo</TableColumn>
-                <TableColumn>Característica</TableColumn>
-                <TableColumn>Origen</TableColumn>
-              </TableHeader>
-              <TableBody>
-                {historial.map((entrada, index) => (
-                  <TableRow key={index}>
-                    <TableCell>{entrada.timestamp}</TableCell>
-                    <TableCell>{entrada.modelo}</TableCell>
-                    <TableCell>{entrada.caracteristica}</TableCell>
-                    <TableCell>{entrada.origen}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            {historial.length > 0 && (
+              <>
+                <Table aria-label="Tabla de historial">
+                  <TableHeader>
+                    <TableColumn>Timestamp</TableColumn>
+                    <TableColumn>Modelo</TableColumn>
+                    <TableColumn>Marca</TableColumn>
+                    <TableColumn>Ubicación</TableColumn>
+                    <TableColumn>Evento</TableColumn>
+                  </TableHeader>
+                  <TableBody>
+                    {historial.map((entrada, index) => (
+                      <TableRow key={index}>
+                        <TableCell>{entrada.timestamp}</TableCell>
+                        <TableCell>{entrada.modelo}</TableCell>
+                        <TableCell>{entrada.marca}</TableCell>
+                        <TableCell>{entrada.ubicacion}</TableCell>
+                        <TableCell>{entrada.evento}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+                {qrUrl && (
+                  <div className="mt-4">
+                    <h3 className="text-lg font-semibold">Código QR</h3>
+                    <img alt="QR Code" className="w-48 h-48" src={qrUrl} />
+                    <a
+                      className="text-blue-500 underline"
+                      download={`qr-${historial[0].id}.png`}
+                      href={qrUrl}
+                    >
+                      Descargar QR
+                    </a>
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </CardBody>
       </Card>
@@ -290,22 +338,48 @@ export default function Home() {
                   }
                 />
                 <Input
-                  label="Característica"
-                  value={selectedDevice.caracteristica}
-                  onChange={(e) =>
-                    setSelectedDevice({
-                      ...selectedDevice,
-                      caracteristica: e.target.value,
-                    })
-                  }
-                />
-                <Input
                   label="Origen"
                   value={selectedDevice.origen}
                   onChange={(e) =>
                     setSelectedDevice({
                       ...selectedDevice,
                       origen: e.target.value,
+                    })
+                  }
+                />
+                <div className="flex gap-2">
+                  <Input
+                    label="Latitud"
+                    value={selectedDevice.latitud}
+                    onChange={(e) =>
+                      setSelectedDevice({
+                        ...selectedDevice,
+                        latitud: e.target.value,
+                      })
+                    }
+                  />
+                  <Input
+                    label="Longitud"
+                    value={selectedDevice.longitud}
+                    onChange={(e) =>
+                      setSelectedDevice({
+                        ...selectedDevice,
+                        longitud: e.target.value,
+                      })
+                    }
+                  />
+                  <Button color="secondary" onPress={getGeolocation}>
+                    Obtener Ubicación
+                  </Button>
+                </div>
+                {geoError && <p className="text-red-500">{geoError}</p>}
+                <Input
+                  label="Evento"
+                  value={selectedDevice.evento}
+                  onChange={(e) =>
+                    setSelectedDevice({
+                      ...selectedDevice,
+                      evento: e.target.value,
                     })
                   }
                 />
@@ -322,48 +396,6 @@ export default function Home() {
           </ModalFooter>
         </ModalContent>
       </Modal>
-
-      <div className="inline-block max-w-xl text-center justify-center">
-        <span className={title()}>Make </span>
-        <span className={title({ color: "violet" })}>beautiful </span>
-        <br />
-        <span className={title()}>
-          websites regardless of your design experience.
-        </span>
-        <div className={subtitle({ class: "mt-4" })}>
-          Beautiful, fast and modern React UI library.
-        </div>
-      </div>
-
-      <div className="flex gap-3">
-        <Link
-          isExternal
-          className={buttonStyles({
-            color: "primary",
-            radius: "full",
-            variant: "shadow",
-          })}
-          href={siteConfig.links.docs}
-        >
-          Documentation
-        </Link>
-        <Link
-          isExternal
-          className={buttonStyles({ variant: "bordered", radius: "full" })}
-          href={siteConfig.links.github}
-        >
-          <GithubIcon size={20} />
-          GitHub
-        </Link>
-      </div>
-
-      <div className="mt-8">
-        <Snippet hideCopyButton hideSymbol variant="bordered">
-          <span>
-            Get started by editing <Code color="primary">app/page.tsx</Code>
-          </span>
-        </Snippet>
-      </div>
     </section>
   );
 }
