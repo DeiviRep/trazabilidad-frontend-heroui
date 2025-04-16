@@ -11,7 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@heroui/react";
-import L from "leaflet"; // Importamos Leaflet
+import L from "leaflet";
 
 export default function Historial({
   params: paramsPromise,
@@ -26,8 +26,8 @@ export default function Historial({
   const params = React.use(paramsPromise);
   const [historial, setHistorial] = React.useState<any[]>([]);
   const [qrUrl, setQrUrl] = React.useState<string>("");
-  const mapRef = useRef<L.Map | null>(null); // Referencia al mapa
-  const mapContainerRef = useRef<HTMLDivElement>(null); // Referencia al contenedor del mapa
+  const mapRef = useRef<L.Map | null>(null);
+  const mapContainerRef = useRef<HTMLDivElement>(null);
 
   const fetchHistorial = async () => {
     try {
@@ -42,7 +42,6 @@ export default function Historial({
 
       setQrUrl(qrResponse.data.qrUrl);
 
-      // Inicializar el mapa con todas las ubicaciones
       if (response.data.length > 0 && mapContainerRef.current) {
         const ubicaciones = response.data.map((entrada: any) => {
           const [lat, lng] = entrada.ubicacion.split(",").map(parseFloat);
@@ -50,7 +49,6 @@ export default function Historial({
           return [lat, lng] as [number, number];
         });
 
-        // Inicializar el mapa si no existe
         if (!mapRef.current) {
           mapRef.current = L.map(mapContainerRef.current).setView(
             ubicaciones[0],
@@ -58,32 +56,37 @@ export default function Historial({
           );
           L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
             attribution:
-              '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+              '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
           }).addTo(mapRef.current);
         }
 
-        // Limpiar marcadores y polilíneas previos
         mapRef.current.eachLayer((layer) => {
           if (layer instanceof L.Marker || layer instanceof L.Polyline) {
             mapRef.current?.removeLayer(layer);
           }
         });
 
-        // Agregar marcadores
+        // Agregar marcadores numerados
         response.data.forEach((entrada: any, index: number) => {
           const [lat, lng] = entrada.ubicacion.split(",").map(parseFloat);
 
           L.marker([lat, lng])
             .addTo(mapRef.current!)
             .bindPopup(
-              `<b>${params.id}</b><br>Evento: ${entrada.evento}<br>Fecha: ${entrada.timestamp}`,
-            );
+              `<b>${index + 1}. ${entrada.evento}</b><br>ID: ${params.id}<br>Ubicación: ${entrada.ubicacion}<br>Fecha: ${entrada.timestamp}`,
+            )
+            .bindTooltip(`${index + 1}`, {
+              permanent: true,
+              direction: "center",
+              className: "leaflet-tooltip-number",
+            });
         });
 
-        // Agregar polilínea para conectar ubicaciones
-        L.polyline(ubicaciones, { color: "blue" }).addTo(mapRef.current!);
+        // Agregar polilínea con flechas para el recorrido
+        L.polyline(ubicaciones, { color: "blue", weight: 4 }).addTo(
+          mapRef.current!,
+        );
 
-        // Ajustar el mapa para mostrar todas las ubicaciones
         if (ubicaciones.length > 1) {
           const bounds = L.latLngBounds(ubicaciones);
 
@@ -99,7 +102,6 @@ export default function Historial({
     fetchHistorial();
 
     return () => {
-      // Limpiar el mapa al desmontar
       if (mapRef.current) {
         mapRef.current.remove();
         mapRef.current = null;
@@ -110,7 +112,7 @@ export default function Historial({
   return (
     <section className="flex flex-col items-center justify-center gap-4 py-8 md:py-10">
       <h1 className="text-3xl font-bold mb-6">Historial de {params.id}</h1>
-      <Card>
+      <Card className="w-full">
         <CardHeader>Historial Completo</CardHeader>
         <CardBody>
           {historial.length > 0 ? (
@@ -135,20 +137,6 @@ export default function Historial({
                   ))}
                 </TableBody>
               </Table>
-              {qrUrl && (
-                <div className="mt-4">
-                  <h3 className="text-lg font-semibold">Código QR</h3>
-                  <img alt="QR Code" className="w-48 h-48" src={qrUrl} />
-                  <a
-                    className="text-blue-500 underline"
-                    download={`qr-${params.id}.png`}
-                    href={qrUrl}
-                  >
-                    Descargar QR
-                  </a>
-                </div>
-              )}
-              {/* Mapa */}
               <div className="mt-4">
                 <h3 className="text-lg font-semibold">
                   Recorrido del Dispositivo

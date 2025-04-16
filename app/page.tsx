@@ -39,6 +39,7 @@ export default function Home() {
   const [longitud, setLongitud] = useState("");
   const [evento, setEvento] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isNewEventModalOpen, setIsNewEventModalOpen] = useState(false); // Nuevo modal para eventos
   const [selectedDevice, setSelectedDevice] = useState<any | null>(null);
   const [geoError, setGeoError] = useState<string>("");
   const mapRef = useRef<L.Map | null>(null);
@@ -89,6 +90,26 @@ export default function Home() {
       setSelectedDevice(null);
     } catch (error) {
       console.error("Error al actualizar dispositivo:", error);
+    }
+  };
+
+  const registrarNuevoEvento = async () => {
+    if (!selectedDevice) return;
+    try {
+      await axios.post(`${BASE_URL}/trazabilidad/actualizar`, {
+        id: selectedDevice.id,
+        modelo: selectedDevice.modelo,
+        marca: selectedDevice.marca,
+        origen: selectedDevice.origen,
+        latitud: selectedDevice.latitud,
+        longitud: selectedDevice.longitud,
+        evento: selectedDevice.evento,
+      });
+      listarDispositivos();
+      setIsNewEventModalOpen(false);
+      setSelectedDevice(null);
+    } catch (error) {
+      console.error("Error al registrar nuevo evento:", error);
     }
   };
 
@@ -149,6 +170,13 @@ export default function Home() {
         (position) => {
           setLatitud(position.coords.latitude.toFixed(4));
           setLongitud(position.coords.longitude.toFixed(4));
+          if (selectedDevice) {
+            setSelectedDevice({
+              ...selectedDevice,
+              latitud: position.coords.latitude.toFixed(4),
+              longitud: position.coords.longitude.toFixed(4),
+            });
+          }
           setGeoError("");
         },
         (error) => {
@@ -182,14 +210,26 @@ export default function Home() {
     setIsModalOpen(true);
   };
 
+  const openNewEventModal = (dispositivo: any) => {
+    setSelectedDevice({
+      ...dispositivo,
+      latitud: "",
+      longitud: "",
+      evento: "",
+    });
+    setIsNewEventModalOpen(true);
+  };
+
   const handleModalClose = () => {
     setIsModalOpen(false);
+    setIsNewEventModalOpen(false);
     setSelectedDevice(null);
     setGeoError("");
   };
 
   useEffect(() => {
     listarDispositivos();
+    consultarHistorial("Cell001");
 
     return () => {
       if (mapRef.current) {
@@ -259,110 +299,75 @@ export default function Home() {
       {/* Lista de Dispositivos */}
       <Card className="mb-6 w-full">
         <CardHeader>Lista de Dispositivos</CardHeader>
-        <CardBody>
-          {/* Contenedor desplazable para la tabla en pantallas grandes */}
-          <div className="overflow-x-auto hidden md:block">
-            <Table aria-label="Tabla de dispositivos" className="min-w-[600px]">
-              <TableHeader>
-                <TableColumn className="w-1/6">ID</TableColumn>
-                <TableColumn className="w-1/6">Modelo</TableColumn>
-                <TableColumn className="w-1/6">Marca</TableColumn>
-                <TableColumn className="w-1/6">Ubicación</TableColumn>
-                <TableColumn className="w-1/6">Evento</TableColumn>
-                <TableColumn className="w-1/6">Timestamp</TableColumn>
-                <TableColumn className="w-1/6">Acciones</TableColumn>
-              </TableHeader>
-              <TableBody>
-                {dispositivos.map((dispositivo) => (
-                  <TableRow key={dispositivo.id}>
-                    <TableCell className="truncate max-w-[100px]">
-                      {dispositivo.id}
-                    </TableCell>
-                    <TableCell className="truncate max-w-[100px]">
-                      {dispositivo.modelo}
-                    </TableCell>
-                    <TableCell className="truncate max-w-[100px]">
-                      {dispositivo.marca}
-                    </TableCell>
-                    <TableCell className="truncate max-w-[100px]">
-                      {dispositivo.ubicacion}
-                    </TableCell>
-                    <TableCell className="truncate max-w-[100px]">
-                      {dispositivo.evento}
-                    </TableCell>
-                    <TableCell className="truncate max-w-[100px]">
-                      {dispositivo.timestamp}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex gap-2">
-                        <Button
-                          color="warning"
-                          size="sm"
-                          onPress={() => openEditModal(dispositivo)}
-                        >
-                          Editar
-                        </Button>
-                        <Button
-                          color="secondary"
-                          size="sm"
-                          onPress={() => consultarHistorial(dispositivo.id)}
-                        >
-                          Ver Historial
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-
-          {/* Lista de tarjetas para pantallas pequeñas */}
-          <div className="md:hidden flex flex-col gap-4">
-            {dispositivos.map((dispositivo) => (
-              <Card key={dispositivo.id} className="p-4">
-                <CardBody>
-                  <div className="flex flex-col gap-2">
-                    <p>
-                      <strong>ID:</strong> {dispositivo.id}
-                    </p>
-                    <p>
-                      <strong>Modelo:</strong> {dispositivo.modelo}
-                    </p>
-                    <p>
-                      <strong>Marca:</strong> {dispositivo.marca}
-                    </p>
-                    <p>
-                      <strong>Ubicación:</strong> {dispositivo.ubicacion}
-                    </p>
-                    <p>
-                      <strong>Evento:</strong> {dispositivo.evento}
-                    </p>
-                    <p>
-                      <strong>Timestamp:</strong> {dispositivo.timestamp}
-                    </p>
-                    <div className="flex gap-2 mt-2">
-                      <Button
-                        color="warning"
-                        size="sm"
-                        onPress={() => openEditModal(dispositivo)}
-                      >
-                        Editar
-                      </Button>
-                      <Button
-                        color="secondary"
-                        size="sm"
-                        onPress={() => consultarHistorial(dispositivo.id)}
-                      >
-                        Ver Historial
-                      </Button>
-                    </div>
+        <Table
+          aria-label="Tabla de dispositivos"
+          className="min-w-[600px]"
+          color="default"
+          defaultSelectedKeys={["0"]}
+          selectionMode="single"
+        >
+          <TableHeader>
+            <TableColumn className="w-1/6">ID</TableColumn>
+            <TableColumn className="w-1/6">Modelo</TableColumn>
+            <TableColumn className="w-1/6">Marca</TableColumn>
+            <TableColumn className="w-1/6">Ubicación</TableColumn>
+            <TableColumn className="w-1/6">Evento</TableColumn>
+            <TableColumn className="w-1/6">Timestamp</TableColumn>
+            <TableColumn className="w-1/6">Acciones</TableColumn>
+          </TableHeader>
+          <TableBody>
+            {dispositivos.map((dispositivo, index) => (
+              <TableRow
+                key={index}
+                onClick={() => consultarHistorial(dispositivo.id)}
+              >
+                <TableCell className="truncate max-w-[100px]">
+                  {dispositivo.id}
+                </TableCell>
+                <TableCell className="truncate max-w-[100px]">
+                  {dispositivo.modelo}
+                </TableCell>
+                <TableCell className="truncate max-w-[100px]">
+                  {dispositivo.marca}
+                </TableCell>
+                <TableCell className="truncate max-w-[100px]">
+                  {dispositivo.ubicacion}
+                </TableCell>
+                <TableCell className="truncate max-w-[100px]">
+                  {dispositivo.evento}
+                </TableCell>
+                <TableCell className="truncate max-w-[100px]">
+                  {dispositivo.timestamp}
+                </TableCell>
+                <TableCell>
+                  <div className="flex gap-2 flex-wrap">
+                    <Button
+                      color="warning"
+                      size="sm"
+                      onPress={() => openEditModal(dispositivo)}
+                    >
+                      Editar
+                    </Button>
+                    <Button
+                      color="success"
+                      size="sm"
+                      onPress={() => openNewEventModal(dispositivo)}
+                    >
+                      Nuevo Evento
+                    </Button>
+                    <Button
+                      color="secondary"
+                      size="sm"
+                      onPress={() => consultarHistorial(dispositivo.id)}
+                    >
+                      Ver Historial
+                    </Button>
                   </div>
-                </CardBody>
-              </Card>
+                </TableCell>
+              </TableRow>
             ))}
-          </div>
-        </CardBody>
+          </TableBody>
+        </Table>
       </Card>
 
       {/* Historial, QR y Mapa */}
@@ -502,6 +507,75 @@ export default function Home() {
             </Button>
             <Button color="primary" onPress={actualizarDispositivo}>
               Guardar
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Modal de Nuevo Evento */}
+      <Modal isOpen={isNewEventModalOpen} onClose={handleModalClose}>
+        <ModalContent>
+          <ModalHeader>Nuevo Registro de Evento</ModalHeader>
+          <ModalBody>
+            {selectedDevice && (
+              <div className="flex flex-col gap-4">
+                <Input isDisabled label="ID" value={selectedDevice.id} />
+                <Input
+                  isDisabled
+                  label="Modelo"
+                  value={selectedDevice.modelo}
+                />
+                <Input isDisabled label="Marca" value={selectedDevice.marca} />
+                <Input
+                  isDisabled
+                  label="Origen"
+                  value={selectedDevice.origen}
+                />
+                <div className="flex gap-2">
+                  <Input
+                    label="Latitud"
+                    value={selectedDevice.latitud}
+                    onChange={(e) =>
+                      setSelectedDevice({
+                        ...selectedDevice,
+                        latitud: e.target.value,
+                      })
+                    }
+                  />
+                  <Input
+                    label="Longitud"
+                    value={selectedDevice.longitud}
+                    onChange={(e) =>
+                      setSelectedDevice({
+                        ...selectedDevice,
+                        longitud: e.target.value,
+                      })
+                    }
+                  />
+                  <Button color="secondary" onPress={getGeolocation}>
+                    Obtener Ubicación
+                  </Button>
+                </div>
+                {geoError && <p className="text-red-500">{geoError}</p>}
+                <Input
+                  label="Evento (Recepción/Entrega)"
+                  value={selectedDevice.evento}
+                  onChange={(e) =>
+                    setSelectedDevice({
+                      ...selectedDevice,
+                      evento: e.target.value,
+                    })
+                  }
+                />
+              </div>
+            )}
+          </ModalBody>
+          <ModalFooter>
+            <Button color="danger" variant="light" onPress={handleModalClose}>
+              Cancelar
+            </Button>
+            <Button color="primary" onPress={registrarNuevoEvento}>
+              Registrar Evento
             </Button>
           </ModalFooter>
         </ModalContent>
