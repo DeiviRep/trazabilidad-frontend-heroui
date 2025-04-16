@@ -1,8 +1,6 @@
-/* eslint-disable no-console */
-/* eslint-disable @next/next/no-img-element */
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Card, CardBody, CardHeader } from "@heroui/card";
 import { Input } from "@heroui/input";
 import { Button } from "@heroui/button";
@@ -22,6 +20,7 @@ import {
   ModalFooter,
 } from "@heroui/modal";
 import axios from "axios";
+import L from "leaflet";
 
 export default function Home() {
   const URL_BACKEND_PROD = process.env.NEXT_PUBLIC_BACKEND_URL_PROD;
@@ -41,7 +40,9 @@ export default function Home() {
   const [evento, setEvento] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState<any | null>(null);
-  const [geoError, setGeoError] = useState<string>(""); // Para errores de geolocalización
+  const [geoError, setGeoError] = useState<string>("");
+  const mapRef = useRef<L.Map | null>(null);
+  const mapContainerRef = useRef<HTMLDivElement>(null);
 
   const listarDispositivos = async () => {
     try {
@@ -79,10 +80,8 @@ export default function Home() {
         modelo: selectedDevice.modelo,
         marca: selectedDevice.marca,
         origen: selectedDevice.origen,
-        latitud:
-          selectedDevice.latitud || selectedDevice.ubicacion.split(",")[0],
-        longitud:
-          selectedDevice.longitud || selectedDevice.ubicacion.split(",")[1],
+        latitud: selectedDevice.latitud,
+        longitud: selectedDevice.longitud,
         evento: selectedDevice.evento,
       });
       listarDispositivos();
@@ -105,6 +104,40 @@ export default function Home() {
       );
 
       setQrUrl(qrResponse.data.qrUrl);
+
+      if (response.data.length > 0) {
+        const ultimaUbicacion = response.data[response.data.length - 1];
+        const lat = parseFloat(ultimaUbicacion.ubicacion.split(",")[0]);
+        const lng = parseFloat(ultimaUbicacion.ubicacion.split(",")[1]);
+
+        if (mapContainerRef.current) {
+          if (!mapRef.current) {
+            mapRef.current = L.map(mapContainerRef.current).setView(
+              [lat, lng],
+              13,
+            );
+            L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+              attribution:
+                '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            }).addTo(mapRef.current);
+          } else {
+            mapRef.current.setView([lat, lng], 13);
+          }
+
+          mapRef.current.eachLayer((layer) => {
+            if (layer instanceof L.Marker) {
+              mapRef.current?.removeLayer(layer);
+            }
+          });
+
+          L.marker([lat, lng])
+            .addTo(mapRef.current!)
+            .bindPopup(
+              `<b>${deviceId}</b><br>Evento: ${ultimaUbicacion.evento}<br>Fecha: ${ultimaUbicacion.timestamp}`,
+            )
+            .openPopup();
+        }
+      }
     } catch (error) {
       console.error("Error al consultar historial:", error);
     }
@@ -157,6 +190,13 @@ export default function Home() {
 
   useEffect(() => {
     listarDispositivos();
+
+    return () => {
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+      }
+    };
   }, []);
 
   return (
@@ -164,7 +204,7 @@ export default function Home() {
       <h1 className="text-3xl font-bold mb-6">Trazabilidad de Dispositivos</h1>
 
       {/* Formulario de Registro */}
-      <Card className="mb-6">
+      <Card className="mb-6 w-full max-w-2xl">
         <CardHeader>Registrar Dispositivo</CardHeader>
         <CardBody>
           <div className="flex flex-col gap-4">
@@ -217,54 +257,116 @@ export default function Home() {
       </Card>
 
       {/* Lista de Dispositivos */}
-      <Card className="mb-6">
+      <Card className="mb-6 w-full">
         <CardHeader>Lista de Dispositivos</CardHeader>
         <CardBody>
-          <Table aria-label="Tabla de dispositivos">
-            <TableHeader>
-              <TableColumn>ID</TableColumn>
-              <TableColumn>Modelo</TableColumn>
-              <TableColumn>Marca</TableColumn>
-              <TableColumn>Ubicación</TableColumn>
-              <TableColumn>Evento</TableColumn>
-              <TableColumn>Timestamp</TableColumn>
-              <TableColumn>Acciones</TableColumn>
-            </TableHeader>
-            <TableBody>
-              {dispositivos.map((dispositivo) => (
-                <TableRow key={dispositivo.id}>
-                  <TableCell>{dispositivo.id}</TableCell>
-                  <TableCell>{dispositivo.modelo}</TableCell>
-                  <TableCell>{dispositivo.marca}</TableCell>
-                  <TableCell>{dispositivo.ubicacion}</TableCell>
-                  <TableCell>{dispositivo.evento}</TableCell>
-                  <TableCell>{dispositivo.timestamp}</TableCell>
-                  <TableCell>
-                    <Button
-                      color="warning"
-                      size="sm"
-                      onPress={() => openEditModal(dispositivo)}
-                    >
-                      Editar
-                    </Button>
-                    <Button
-                      className="ml-2"
-                      color="secondary"
-                      size="sm"
-                      onPress={() => consultarHistorial(dispositivo.id)}
-                    >
-                      Ver Historial
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          {/* Contenedor desplazable para la tabla en pantallas grandes */}
+          <div className="overflow-x-auto hidden md:block">
+            <Table aria-label="Tabla de dispositivos" className="min-w-[600px]">
+              <TableHeader>
+                <TableColumn className="w-1/6">ID</TableColumn>
+                <TableColumn className="w-1/6">Modelo</TableColumn>
+                <TableColumn className="w-1/6">Marca</TableColumn>
+                <TableColumn className="w-1/6">Ubicación</TableColumn>
+                <TableColumn className="w-1/6">Evento</TableColumn>
+                <TableColumn className="w-1/6">Timestamp</TableColumn>
+                <TableColumn className="w-1/6">Acciones</TableColumn>
+              </TableHeader>
+              <TableBody>
+                {dispositivos.map((dispositivo) => (
+                  <TableRow key={dispositivo.id}>
+                    <TableCell className="truncate max-w-[100px]">
+                      {dispositivo.id}
+                    </TableCell>
+                    <TableCell className="truncate max-w-[100px]">
+                      {dispositivo.modelo}
+                    </TableCell>
+                    <TableCell className="truncate max-w-[100px]">
+                      {dispositivo.marca}
+                    </TableCell>
+                    <TableCell className="truncate max-w-[100px]">
+                      {dispositivo.ubicacion}
+                    </TableCell>
+                    <TableCell className="truncate max-w-[100px]">
+                      {dispositivo.evento}
+                    </TableCell>
+                    <TableCell className="truncate max-w-[100px]">
+                      {dispositivo.timestamp}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex gap-2">
+                        <Button
+                          color="warning"
+                          size="sm"
+                          onPress={() => openEditModal(dispositivo)}
+                        >
+                          Editar
+                        </Button>
+                        <Button
+                          color="secondary"
+                          size="sm"
+                          onPress={() => consultarHistorial(dispositivo.id)}
+                        >
+                          Ver Historial
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+
+          {/* Lista de tarjetas para pantallas pequeñas */}
+          <div className="md:hidden flex flex-col gap-4">
+            {dispositivos.map((dispositivo) => (
+              <Card key={dispositivo.id} className="p-4">
+                <CardBody>
+                  <div className="flex flex-col gap-2">
+                    <p>
+                      <strong>ID:</strong> {dispositivo.id}
+                    </p>
+                    <p>
+                      <strong>Modelo:</strong> {dispositivo.modelo}
+                    </p>
+                    <p>
+                      <strong>Marca:</strong> {dispositivo.marca}
+                    </p>
+                    <p>
+                      <strong>Ubicación:</strong> {dispositivo.ubicacion}
+                    </p>
+                    <p>
+                      <strong>Evento:</strong> {dispositivo.evento}
+                    </p>
+                    <p>
+                      <strong>Timestamp:</strong> {dispositivo.timestamp}
+                    </p>
+                    <div className="flex gap-2 mt-2">
+                      <Button
+                        color="warning"
+                        size="sm"
+                        onPress={() => openEditModal(dispositivo)}
+                      >
+                        Editar
+                      </Button>
+                      <Button
+                        color="secondary"
+                        size="sm"
+                        onPress={() => consultarHistorial(dispositivo.id)}
+                      >
+                        Ver Historial
+                      </Button>
+                    </div>
+                  </div>
+                </CardBody>
+              </Card>
+            ))}
+          </div>
         </CardBody>
       </Card>
 
-      {/* Historial y QR */}
-      <Card>
+      {/* Historial, QR y Mapa */}
+      <Card className="w-full">
         <CardHeader>Historial del Dispositivo</CardHeader>
         <CardBody>
           <div className="flex flex-col gap-4">
@@ -303,6 +405,14 @@ export default function Home() {
                     </a>
                   </div>
                 )}
+                <div className="mt-4">
+                  <h3 className="text-lg font-semibold">Ubicación Actual</h3>
+                  <div
+                    ref={mapContainerRef}
+                    id="map"
+                    style={{ height: "400px", width: "100%" }}
+                  />
+                </div>
               </>
             )}
           </div>

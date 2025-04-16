@@ -1,8 +1,6 @@
-/* eslint-disable no-console */
-/* eslint-disable @next/next/no-img-element */
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import axios from "axios";
 import { Card, CardBody, CardHeader } from "@heroui/card";
 import {
@@ -13,6 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@heroui/react";
+import L from "leaflet"; // Importamos Leaflet
 
 export default function Historial({
   params: paramsPromise,
@@ -24,10 +23,11 @@ export default function Historial({
   const IS_PROD = process.env.NEXT_PUBLIC_IS_PROD === "true";
   const BASE_URL = IS_PROD ? URL_BACKEND_PROD : URL_BACKEND_DEV;
 
-  // Desempaquetar params con React.use()
   const params = React.use(paramsPromise);
   const [historial, setHistorial] = React.useState<any[]>([]);
   const [qrUrl, setQrUrl] = React.useState<string>("");
+  const mapRef = useRef<L.Map | null>(null); // Referencia al mapa
+  const mapContainerRef = useRef<HTMLDivElement>(null); // Referencia al contenedor del mapa
 
   const fetchHistorial = async () => {
     try {
@@ -41,6 +41,55 @@ export default function Historial({
       );
 
       setQrUrl(qrResponse.data.qrUrl);
+
+      // Inicializar el mapa con todas las ubicaciones
+      if (response.data.length > 0 && mapContainerRef.current) {
+        const ubicaciones = response.data.map((entrada: any) => {
+          const [lat, lng] = entrada.ubicacion.split(",").map(parseFloat);
+
+          return [lat, lng] as [number, number];
+        });
+
+        // Inicializar el mapa si no existe
+        if (!mapRef.current) {
+          mapRef.current = L.map(mapContainerRef.current).setView(
+            ubicaciones[0],
+            13,
+          );
+          L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+            attribution:
+              '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+          }).addTo(mapRef.current);
+        }
+
+        // Limpiar marcadores y polilíneas previos
+        mapRef.current.eachLayer((layer) => {
+          if (layer instanceof L.Marker || layer instanceof L.Polyline) {
+            mapRef.current?.removeLayer(layer);
+          }
+        });
+
+        // Agregar marcadores
+        response.data.forEach((entrada: any, index: number) => {
+          const [lat, lng] = entrada.ubicacion.split(",").map(parseFloat);
+
+          L.marker([lat, lng])
+            .addTo(mapRef.current!)
+            .bindPopup(
+              `<b>${params.id}</b><br>Evento: ${entrada.evento}<br>Fecha: ${entrada.timestamp}`,
+            );
+        });
+
+        // Agregar polilínea para conectar ubicaciones
+        L.polyline(ubicaciones, { color: "blue" }).addTo(mapRef.current!);
+
+        // Ajustar el mapa para mostrar todas las ubicaciones
+        if (ubicaciones.length > 1) {
+          const bounds = L.latLngBounds(ubicaciones);
+
+          mapRef.current.fitBounds(bounds);
+        }
+      }
     } catch (error) {
       console.error("Error al consultar historial:", error);
     }
@@ -48,6 +97,14 @@ export default function Historial({
 
   useEffect(() => {
     fetchHistorial();
+
+    return () => {
+      // Limpiar el mapa al desmontar
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+      }
+    };
   }, [params.id]);
 
   return (
@@ -91,6 +148,17 @@ export default function Historial({
                   </a>
                 </div>
               )}
+              {/* Mapa */}
+              <div className="mt-4">
+                <h3 className="text-lg font-semibold">
+                  Recorrido del Dispositivo
+                </h3>
+                <div
+                  ref={mapContainerRef}
+                  id="map-historial"
+                  style={{ height: "400px", width: "100%" }}
+                />
+              </div>
             </>
           ) : (
             <p>No se encontró historial para este dispositivo.</p>
