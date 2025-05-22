@@ -1,9 +1,12 @@
+/* eslint-disable no-console */
 "use client";
 
 import { useEffect, useState, useRef } from "react";
 import { Card, CardBody, CardHeader } from "@heroui/card";
 import { Input } from "@heroui/input";
 import { Button } from "@heroui/button";
+import { Select, SelectItem } from "@heroui/select";
+import { Alert } from "@heroui/alert";
 import {
   Table,
   TableBody,
@@ -42,8 +45,45 @@ export default function Home() {
   const [isNewEventModalOpen, setIsNewEventModalOpen] = useState(false); // Nuevo modal para eventos
   const [selectedDevice, setSelectedDevice] = useState<any | null>(null);
   const [geoError, setGeoError] = useState<string>("");
+  const [alertVisible, setAlertVisible] = useState(false);
+  const [alertTitle, setAlertTitle] = useState("");
+  const [alertDescription, setAlertDescription] = useState("");
+  const [alertColor, setAlertColor] = useState<
+    | "success"
+    | "danger"
+    | "warning"
+    | "default"
+    | "primary"
+    | "secondary"
+    | undefined
+  >("success");
+
   const mapRef = useRef<L.Map | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
+
+  const eventos = [
+    { key: "Salida", label: "Salida" },
+    { key: "Recepción", label: "Recepción" },
+    { key: "Entrega", label: "Entrega" },
+  ];
+
+  const showAlert = (
+    title: string,
+    description: string,
+    color:
+      | "success"
+      | "danger"
+      | "warning"
+      | "default"
+      | "primary"
+      | "secondary"
+      | undefined = "success",
+  ) => {
+    setAlertTitle(title);
+    setAlertDescription(description);
+    setAlertColor(color);
+    setAlertVisible(true);
+  };
 
   const listarDispositivos = async () => {
     try {
@@ -51,7 +91,7 @@ export default function Home() {
 
       setDispositivos(response.data);
     } catch (error) {
-      console.error("Error al listar dispositivos:", error);
+      console.log("Error al listar dispositivos:", error);
     }
   };
 
@@ -66,10 +106,16 @@ export default function Home() {
         longitud,
         evento,
       });
+      showAlert(
+        "Registro exitoso",
+        "El dispositivo fue registrado correctamente.",
+        "success",
+      );
       listarDispositivos();
       clearForm();
     } catch (error) {
-      console.error("Error al registrar dispositivo:", error);
+      showAlert("Error", "No se pudo registrar el dispositivo.", "danger");
+      console.log("Error al registrar dispositivo:", error);
     }
   };
 
@@ -85,11 +131,17 @@ export default function Home() {
         longitud: selectedDevice.longitud,
         evento: selectedDevice.evento,
       });
+      showAlert(
+        "Actualización exitosa",
+        "El dispositivo fue actualizado.",
+        "success",
+      );
       listarDispositivos();
       setIsModalOpen(false);
       setSelectedDevice(null);
     } catch (error) {
-      console.error("Error al actualizar dispositivo:", error);
+      showAlert("Error", "No se pudo actualizar el dispositivo.", "danger");
+      console.log("Error al actualizar dispositivo:", error);
     }
   };
 
@@ -105,11 +157,19 @@ export default function Home() {
         longitud: selectedDevice.longitud,
         evento: selectedDevice.evento,
       });
+      showAlert(
+        "Evento registrado",
+        "El nuevo evento fue guardado.",
+        "success",
+      );
+
       listarDispositivos();
       setIsNewEventModalOpen(false);
       setSelectedDevice(null);
     } catch (error) {
-      console.error("Error al registrar nuevo evento:", error);
+      showAlert("Error", "No se pudo registrar el evento.", "danger");
+
+      console.log("Error al registrar nuevo evento:", error);
     }
   };
 
@@ -160,7 +220,7 @@ export default function Home() {
         }
       }
     } catch (error) {
-      console.error("Error al consultar historial:", error);
+      console.log("Error al consultar historial:", error);
     }
   };
 
@@ -242,6 +302,16 @@ export default function Home() {
   return (
     <section className="flex flex-col items-center justify-center gap-4 py-8 md:py-10">
       <h1 className="text-3xl font-bold mb-6">Trazabilidad de Dispositivos</h1>
+      {alertVisible && (
+        <Alert
+          color={alertColor}
+          description={alertDescription}
+          isVisible={alertVisible}
+          title={alertTitle}
+          variant="faded"
+          onClose={() => setAlertVisible(false)}
+        />
+      )}
 
       {/* Formulario de Registro */}
       <Card className="mb-6 w-full max-w-2xl">
@@ -284,11 +354,19 @@ export default function Home() {
               </Button>
             </div>
             {geoError && <p className="text-red-500">{geoError}</p>}
-            <Input
-              placeholder="Evento (Salida/Recepción/Entrega)"
-              value={evento}
-              onChange={(e) => setEvento(e.target.value)}
-            />
+            <Select
+              className="max-w-xs"
+              label="Evento"
+              selectedKeys={evento ? [evento] : []}
+              onSelectionChange={(keys) =>
+                setEvento(Array.from(keys)[0] as string)
+              }
+            >
+              {eventos.map((evento) => (
+                <SelectItem key={evento.key}>{evento.label}</SelectItem>
+              ))}
+            </Select>
+
             <Button color="primary" onPress={registrarDispositivo}>
               Registrar
             </Button>
@@ -377,6 +455,17 @@ export default function Home() {
           <div className="flex flex-col gap-4">
             {historial.length > 0 && (
               <>
+                <a
+                  href={`/trazabilidad/historial/${historial[0].id}`}
+                  rel="noopener noreferrer"
+                  style={{
+                    marginRight: "auto",
+                  }}
+                  target="_blank"
+                >
+                  <Button color="primary">Ver historial completo</Button>
+                </a>
+
                 <Table aria-label="Tabla de historial">
                   <TableHeader>
                     <TableColumn>Timestamp</TableColumn>
@@ -488,16 +577,23 @@ export default function Home() {
                   </Button>
                 </div>
                 {geoError && <p className="text-red-500">{geoError}</p>}
-                <Input
+                <Select
+                  className="max-w-xs"
                   label="Evento"
-                  value={selectedDevice.evento}
-                  onChange={(e) =>
+                  selectedKeys={
+                    selectedDevice.evento ? [selectedDevice.evento] : []
+                  }
+                  onSelectionChange={(keys) =>
                     setSelectedDevice({
                       ...selectedDevice,
-                      evento: e.target.value,
+                      evento: Array.from(keys)[0] as string,
                     })
                   }
-                />
+                >
+                  {eventos.map((evento) => (
+                    <SelectItem key={evento.key}>{evento.label}</SelectItem>
+                  ))}
+                </Select>
               </div>
             )}
           </ModalBody>
@@ -557,16 +653,23 @@ export default function Home() {
                   </Button>
                 </div>
                 {geoError && <p className="text-red-500">{geoError}</p>}
-                <Input
-                  label="Evento (Recepción/Entrega)"
-                  value={selectedDevice.evento}
-                  onChange={(e) =>
+                <Select
+                  className="max-w-xs"
+                  label="Evento"
+                  selectedKeys={
+                    selectedDevice.evento ? [selectedDevice.evento] : []
+                  }
+                  onSelectionChange={(keys) =>
                     setSelectedDevice({
                       ...selectedDevice,
-                      evento: e.target.value,
+                      evento: Array.from(keys)[0] as string,
                     })
                   }
-                />
+                >
+                  {eventos.map((evento) => (
+                    <SelectItem key={evento.key}>{evento.label}</SelectItem>
+                  ))}
+                </Select>
               </div>
             )}
           </ModalBody>
