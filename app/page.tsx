@@ -1,12 +1,17 @@
+/* eslint-disable @next/next/no-img-element */
+/* eslint-disable jsx-a11y/click-events-have-key-events */
+/* eslint-disable jsx-a11y/no-static-element-interactions */
 /* eslint-disable no-console */
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { Card, CardBody, CardHeader } from "@heroui/card";
+import { Card, CardHeader } from "@heroui/card";
 import { Input } from "@heroui/input";
 import { Button } from "@heroui/button";
 import { Select, SelectItem } from "@heroui/select";
 import { Alert } from "@heroui/alert";
+import { Chip } from "@heroui/chip";
+import { Tooltip } from "@heroui/tooltip";
 import {
   Table,
   TableBody,
@@ -32,7 +37,6 @@ export default function Home() {
   const BASE_URL = IS_PROD ? URL_BACKEND_PROD : URL_BACKEND_DEV;
 
   const [dispositivos, setDispositivos] = useState<any[]>([]);
-  const [historial, setHistorial] = useState<any[]>([]);
   const [qrUrl, setQrUrl] = useState<string>("");
   const [id, setId] = useState("");
   const [modelo, setModelo] = useState("");
@@ -41,8 +45,9 @@ export default function Home() {
   const [latitud, setLatitud] = useState("");
   const [longitud, setLongitud] = useState("");
   const [evento, setEvento] = useState("");
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isNewEventModalOpen, setIsNewEventModalOpen] = useState(false); // Nuevo modal para eventos
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isNewEventModalOpen, setIsNewEventModalOpen] = useState(false);
+  const [isQrModalOpen, setIsQrModalOpen] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState<any | null>(null);
   const [geoError, setGeoError] = useState<string>("");
   const [alertVisible, setAlertVisible] = useState(false);
@@ -57,9 +62,12 @@ export default function Home() {
     | "secondary"
     | undefined
   >("success");
+  const [tooltipStates, setTooltipStates] = useState<{
+    [key: string]: boolean;
+  }>({});
 
-  const mapRef = useRef<L.Map | null>(null);
-  const mapContainerRef = useRef<HTMLDivElement>(null);
+  // Referencias para mapas dinámicos en tooltips
+  const mapRefs = useRef<{ [key: string]: L.Map | null }>({});
 
   const eventos = [
     { key: "Salida", label: "Salida" },
@@ -113,35 +121,10 @@ export default function Home() {
       );
       listarDispositivos();
       clearForm();
+      setIsCreateModalOpen(false);
     } catch (error) {
       showAlert("Error", "No se pudo registrar el dispositivo.", "danger");
       console.log("Error al registrar dispositivo:", error);
-    }
-  };
-
-  const actualizarDispositivo = async () => {
-    if (!selectedDevice) return;
-    try {
-      await axios.post(`${BASE_URL}/trazabilidad/actualizar`, {
-        id: selectedDevice.id,
-        modelo: selectedDevice.modelo,
-        marca: selectedDevice.marca,
-        origen: selectedDevice.origen,
-        latitud: selectedDevice.latitud,
-        longitud: selectedDevice.longitud,
-        evento: selectedDevice.evento,
-      });
-      showAlert(
-        "Actualización exitosa",
-        "El dispositivo fue actualizado.",
-        "success",
-      );
-      listarDispositivos();
-      setIsModalOpen(false);
-      setSelectedDevice(null);
-    } catch (error) {
-      showAlert("Error", "No se pudo actualizar el dispositivo.", "danger");
-      console.log("Error al actualizar dispositivo:", error);
     }
   };
 
@@ -162,65 +145,26 @@ export default function Home() {
         "El nuevo evento fue guardado.",
         "success",
       );
-
       listarDispositivos();
       setIsNewEventModalOpen(false);
       setSelectedDevice(null);
     } catch (error) {
       showAlert("Error", "No se pudo registrar el evento.", "danger");
-
       console.log("Error al registrar nuevo evento:", error);
     }
   };
 
-  const consultarHistorial = async (deviceId: string) => {
+  const openQrModal = async (deviceId: string) => {
     try {
-      const response = await axios.get(
-        `${BASE_URL}/trazabilidad/historial/${deviceId}`,
-      );
-
-      setHistorial(response.data);
       const qrResponse = await axios.get(
         `${BASE_URL}/trazabilidad/qr/${deviceId}`,
       );
 
       setQrUrl(qrResponse.data.qrUrl);
-
-      if (response.data.length > 0) {
-        const ultimaUbicacion = response.data[response.data.length - 1];
-        const lat = parseFloat(ultimaUbicacion.ubicacion.split(",")[0]);
-        const lng = parseFloat(ultimaUbicacion.ubicacion.split(",")[1]);
-
-        if (mapContainerRef.current) {
-          if (!mapRef.current) {
-            mapRef.current = L.map(mapContainerRef.current).setView(
-              [lat, lng],
-              13,
-            );
-            L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-              attribution:
-                '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-            }).addTo(mapRef.current);
-          } else {
-            mapRef.current.setView([lat, lng], 13);
-          }
-
-          mapRef.current.eachLayer((layer) => {
-            if (layer instanceof L.Marker) {
-              mapRef.current?.removeLayer(layer);
-            }
-          });
-
-          L.marker([lat, lng])
-            .addTo(mapRef.current!)
-            .bindPopup(
-              `<b>${deviceId}</b><br>Evento: ${ultimaUbicacion.evento}<br>Fecha: ${ultimaUbicacion.timestamp}`,
-            )
-            .openPopup();
-        }
-      }
+      setIsQrModalOpen(true);
     } catch (error) {
-      console.log("Error al consultar historial:", error);
+      console.log("Error al obtener QR:", error);
+      showAlert("Error", "No se pudo obtener el código QR.", "danger");
     }
   };
 
@@ -261,15 +205,6 @@ export default function Home() {
     setGeoError("");
   };
 
-  const openEditModal = (dispositivo: any) => {
-    setSelectedDevice({
-      ...dispositivo,
-      latitud: dispositivo.ubicacion.split(",")[0],
-      longitud: dispositivo.ubicacion.split(",")[1],
-    });
-    setIsModalOpen(true);
-  };
-
   const openNewEventModal = (dispositivo: any) => {
     setSelectedDevice({
       ...dispositivo,
@@ -281,101 +216,102 @@ export default function Home() {
   };
 
   const handleModalClose = () => {
-    setIsModalOpen(false);
     setIsNewEventModalOpen(false);
+    setIsCreateModalOpen(false);
+    setIsQrModalOpen(false);
     setSelectedDevice(null);
     setGeoError("");
+    setQrUrl("");
+    clearForm();
+  };
+
+  // Inicializar y limpiar el mapa
+  const initializeMap = (deviceId: string, lat: number, lng: number) => {
+    console.log(`Intentando inicializar mapa para ${deviceId}`);
+    if (!mapRefs.current[deviceId]) {
+      const mapContainer = document.getElementById(`map-${deviceId}`);
+
+      if (mapContainer) {
+        console.log(`Contenedor encontrado para ${deviceId}`);
+        const map = L.map(mapContainer).setView([lat, lng], 13);
+
+        L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          attribution:
+            '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        }).addTo(map);
+        L.marker([lat, lng])
+          .addTo(map)
+          .bindPopup(`<b>${deviceId}</b>`)
+          .openPopup();
+        mapRefs.current[deviceId] = map;
+        console.log(`Mapa inicializado para ${deviceId}`);
+      } else {
+        console.log(`Contenedor no encontrado para ${deviceId}`);
+      }
+    }
+  };
+
+  const cleanupMap = (deviceId: string) => {
+    if (mapRefs.current[deviceId]) {
+      mapRefs.current[deviceId]?.remove();
+      mapRefs.current[deviceId] = null;
+      console.log(`Mapa eliminado para ${deviceId}`);
+    }
   };
 
   useEffect(() => {
     listarDispositivos();
-    consultarHistorial("Cell001");
-
-    return () => {
-      if (mapRef.current) {
-        mapRef.current.remove();
-        mapRef.current = null;
-      }
-    };
   }, []);
+
+  useEffect(() => {
+    Object.entries(tooltipStates).forEach(([deviceId, isOpen]) => {
+      const dispositivo = dispositivos.find((d) => d.id === deviceId);
+
+      if (!dispositivo) return;
+
+      const [lat, lng] = dispositivo.ubicacion
+        .split(",")
+        .map((coord: string) => parseFloat(coord.trim()));
+      const isValidCoords = !isNaN(lat) && !isNaN(lng);
+
+      if (isOpen && isValidCoords) {
+        initializeMap(deviceId, lat, lng);
+      } else if (!isOpen && mapRefs.current[deviceId]) {
+        cleanupMap(deviceId);
+      }
+    });
+  }, [tooltipStates, dispositivos]);
 
   return (
     <section className="flex flex-col items-center justify-center gap-4 py-8 md:py-10">
       <h1 className="text-3xl font-bold mb-6">Trazabilidad de Dispositivos</h1>
       {alertVisible && (
-        <Alert
-          color={alertColor}
-          description={alertDescription}
-          isVisible={alertVisible}
-          title={alertTitle}
-          variant="faded"
-          onClose={() => setAlertVisible(false)}
-        />
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setAlertVisible(false);
+          }}
+        >
+          <Alert
+            className="w-[90%] max-w-md"
+            color={alertColor}
+            description={alertDescription}
+            isVisible={alertVisible}
+            title={alertTitle}
+            variant="faded"
+            onClose={() => setAlertVisible(false)}
+          />
+        </div>
       )}
 
-      {/* Formulario de Registro */}
-      <Card className="mb-6 w-full max-w-2xl">
-        <CardHeader>Registrar Dispositivo</CardHeader>
-        <CardBody>
-          <div className="flex flex-col gap-4">
-            <Input
-              placeholder="ID"
-              value={id}
-              onChange={(e) => setId(e.target.value)}
-            />
-            <Input
-              placeholder="Modelo"
-              value={modelo}
-              onChange={(e) => setModelo(e.target.value)}
-            />
-            <Input
-              placeholder="Marca"
-              value={marca}
-              onChange={(e) => setMarca(e.target.value)}
-            />
-            <Input
-              placeholder="Origen"
-              value={origen}
-              onChange={(e) => setOrigen(e.target.value)}
-            />
-            <div className="flex gap-2">
-              <Input
-                placeholder="Latitud"
-                value={latitud}
-                onChange={(e) => setLatitud(e.target.value)}
-              />
-              <Input
-                placeholder="Longitud"
-                value={longitud}
-                onChange={(e) => setLongitud(e.target.value)}
-              />
-              <Button color="secondary" onPress={getGeolocation}>
-                Obtener Ubicación
-              </Button>
-            </div>
-            {geoError && <p className="text-red-500">{geoError}</p>}
-            <Select
-              className="max-w-xs"
-              label="Evento"
-              selectedKeys={evento ? [evento] : []}
-              onSelectionChange={(keys) =>
-                setEvento(Array.from(keys)[0] as string)
-              }
-            >
-              {eventos.map((evento) => (
-                <SelectItem key={evento.key}>{evento.label}</SelectItem>
-              ))}
-            </Select>
-
-            <Button color="primary" onPress={registrarDispositivo}>
-              Registrar
-            </Button>
-          </div>
-        </CardBody>
-      </Card>
-
-      {/* Lista de Dispositivos */}
       <Card className="mb-6 w-full">
+        <Button
+          color="primary"
+          variant="shadow"
+          onPress={() => setIsCreateModalOpen(true)}
+        >
+          Crear Dispositivo
+        </Button>
         <CardHeader>Lista de Dispositivos</CardHeader>
         <Table
           aria-label="Tabla de dispositivos"
@@ -394,221 +330,160 @@ export default function Home() {
             <TableColumn className="w-1/6">Acciones</TableColumn>
           </TableHeader>
           <TableBody>
-            {dispositivos.map((dispositivo, index) => (
-              <TableRow
-                key={index}
-                onClick={() => consultarHistorial(dispositivo.id)}
-              >
-                <TableCell className="truncate max-w-[100px]">
-                  {dispositivo.id}
-                </TableCell>
-                <TableCell className="truncate max-w-[100px]">
-                  {dispositivo.modelo}
-                </TableCell>
-                <TableCell className="truncate max-w-[100px]">
-                  {dispositivo.marca}
-                </TableCell>
-                <TableCell className="truncate max-w-[100px]">
-                  {dispositivo.ubicacion}
-                </TableCell>
-                <TableCell className="truncate max-w-[100px]">
-                  {dispositivo.evento}
-                </TableCell>
-                <TableCell className="truncate max-w-[100px]">
-                  {dispositivo.timestamp}
-                </TableCell>
-                <TableCell>
-                  <div className="flex gap-2 flex-wrap">
-                    <Button
-                      color="warning"
-                      size="sm"
-                      onPress={() => openEditModal(dispositivo)}
+            {dispositivos.map((dispositivo, index) => {
+              const [lat, lng] = dispositivo.ubicacion
+                .split(",")
+                .map((coord: string) => parseFloat(coord.trim()));
+              const isValidCoords = !isNaN(lat) && !isNaN(lng);
+              const deviceId = dispositivo.id;
+
+              // Actualizar estado del tooltip
+              const handleOpenChange = (open: boolean) => {
+                setTooltipStates((prev) => ({ ...prev, [deviceId]: open }));
+              };
+
+              return (
+                <TableRow
+                  key={index}
+                  onClick={() => openQrModal(dispositivo.id)}
+                >
+                  <TableCell className="truncate max-w-[100px]">
+                    {dispositivo.id}
+                  </TableCell>
+                  <TableCell className="truncate max-w-[100px]">
+                    {dispositivo.modelo}
+                  </TableCell>
+                  <TableCell className="truncate max-w-[100px]">
+                    {dispositivo.marca}
+                  </TableCell>
+                  <TableCell className="truncate max-w-[100px]">
+                    <Tooltip
+                      content={
+                        <div
+                          className="w-[340px] h-[240px] py-2 px-1 shadow-md rounded-lg"
+                          style={{
+                            position: "relative",
+                            boxSizing: "border-box",
+                          }}
+                        >
+                          <div
+                            id={`map-${deviceId}`}
+                            style={{
+                              width: "100%",
+                              height: "100%",
+                              // borderRadius: "2",
+                              overflow: "hidden",
+                            }}
+                          />
+                        </div>
+                      }
+                      placement="bottom"
+                      onOpenChange={handleOpenChange}
                     >
-                      Editar
-                    </Button>
-                    <Button
-                      color="success"
-                      size="sm"
-                      onPress={() => openNewEventModal(dispositivo)}
-                    >
-                      Nuevo Evento
-                    </Button>
-                    <Button
-                      color="secondary"
-                      size="sm"
-                      onPress={() => consultarHistorial(dispositivo.id)}
-                    >
-                      Ver Historial
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
+                      <Chip color="primary" size="sm" variant="flat">
+                        {dispositivo.ubicacion}
+                      </Chip>
+                    </Tooltip>
+                  </TableCell>
+                  <TableCell className="truncate max-w-[100px]">
+                    {dispositivo.evento}
+                  </TableCell>
+                  <TableCell className="truncate max-w-[100px]">
+                    {dispositivo.timestamp}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex gap-2 flex-wrap">
+                      <Button
+                        color="success"
+                        size="sm"
+                        onPress={() => openNewEventModal(dispositivo)}
+                      >
+                        Nuevo Evento
+                      </Button>
+                      <a
+                        href={`/trazabilidad/historial/${dispositivo.id}`}
+                        rel="noopener noreferrer"
+                        target="_blank"
+                      >
+                        <Button color="secondary" size="sm">
+                          Ver Historial
+                        </Button>
+                      </a>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       </Card>
 
-      {/* Historial, QR y Mapa */}
-      <Card className="w-full">
-        <CardHeader>Historial del Dispositivo</CardHeader>
-        <CardBody>
-          <div className="flex flex-col gap-4">
-            {historial.length > 0 && (
-              <>
-                <a
-                  href={`/trazabilidad/historial/${historial[0].id}`}
-                  rel="noopener noreferrer"
-                  style={{
-                    marginRight: "auto",
-                  }}
-                  target="_blank"
-                >
-                  <Button color="primary">Ver historial completo</Button>
-                </a>
-
-                <Table aria-label="Tabla de historial">
-                  <TableHeader>
-                    <TableColumn>Timestamp</TableColumn>
-                    <TableColumn>Modelo</TableColumn>
-                    <TableColumn>Marca</TableColumn>
-                    <TableColumn>Ubicación</TableColumn>
-                    <TableColumn>Evento</TableColumn>
-                  </TableHeader>
-                  <TableBody>
-                    {historial.map((entrada, index) => (
-                      <TableRow key={index}>
-                        <TableCell>{entrada.timestamp}</TableCell>
-                        <TableCell>{entrada.modelo}</TableCell>
-                        <TableCell>{entrada.marca}</TableCell>
-                        <TableCell>{entrada.ubicacion}</TableCell>
-                        <TableCell>{entrada.evento}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-                {qrUrl && (
-                  <div className="mt-4">
-                    <h3 className="text-lg font-semibold">Código QR</h3>
-                    <img alt="QR Code" className="w-48 h-48" src={qrUrl} />
-                    <a
-                      className="text-blue-500 underline"
-                      download={`qr-${historial[0].id}.png`}
-                      href={qrUrl}
-                    >
-                      Descargar QR
-                    </a>
-                  </div>
-                )}
-                <div className="mt-4">
-                  <h3 className="text-lg font-semibold">Ubicación Actual</h3>
-                  <div
-                    ref={mapContainerRef}
-                    id="map"
-                    style={{ height: "400px", width: "100%" }}
-                  />
-                </div>
-              </>
-            )}
-          </div>
-        </CardBody>
-      </Card>
-
-      {/* Modal de Edición */}
-      <Modal isOpen={isModalOpen} onClose={handleModalClose}>
+      <Modal isOpen={isCreateModalOpen} onClose={handleModalClose}>
         <ModalContent>
-          <ModalHeader>Editar Dispositivo</ModalHeader>
+          <ModalHeader>Crear Dispositivo</ModalHeader>
           <ModalBody>
-            {selectedDevice && (
-              <div className="flex flex-col gap-4">
-                <Input isDisabled label="ID" value={selectedDevice.id} />
+            <div className="flex flex-col gap-4">
+              <Input
+                placeholder="ID"
+                value={id}
+                onChange={(e) => setId(e.target.value)}
+              />
+              <Input
+                placeholder="Modelo"
+                value={modelo}
+                onChange={(e) => setModelo(e.target.value)}
+              />
+              <Input
+                placeholder="Marca"
+                value={marca}
+                onChange={(e) => setMarca(e.target.value)}
+              />
+              <Input
+                placeholder="Origen"
+                value={origen}
+                onChange={(e) => setOrigen(e.target.value)}
+              />
+              <div className="flex gap-2">
                 <Input
-                  label="Modelo"
-                  value={selectedDevice.modelo}
-                  onChange={(e) =>
-                    setSelectedDevice({
-                      ...selectedDevice,
-                      modelo: e.target.value,
-                    })
-                  }
+                  placeholder="Latitud"
+                  value={latitud}
+                  onChange={(e) => setLatitud(e.target.value)}
                 />
                 <Input
-                  label="Marca"
-                  value={selectedDevice.marca}
-                  onChange={(e) =>
-                    setSelectedDevice({
-                      ...selectedDevice,
-                      marca: e.target.value,
-                    })
-                  }
+                  placeholder="Longitud"
+                  value={longitud}
+                  onChange={(e) => setLongitud(e.target.value)}
                 />
-                <Input
-                  label="Origen"
-                  value={selectedDevice.origen}
-                  onChange={(e) =>
-                    setSelectedDevice({
-                      ...selectedDevice,
-                      origen: e.target.value,
-                    })
-                  }
-                />
-                <div className="flex gap-2">
-                  <Input
-                    label="Latitud"
-                    value={selectedDevice.latitud}
-                    onChange={(e) =>
-                      setSelectedDevice({
-                        ...selectedDevice,
-                        latitud: e.target.value,
-                      })
-                    }
-                  />
-                  <Input
-                    label="Longitud"
-                    value={selectedDevice.longitud}
-                    onChange={(e) =>
-                      setSelectedDevice({
-                        ...selectedDevice,
-                        longitud: e.target.value,
-                      })
-                    }
-                  />
-                  <Button color="secondary" onPress={getGeolocation}>
-                    Obtener Ubicación
-                  </Button>
-                </div>
-                {geoError && <p className="text-red-500">{geoError}</p>}
-                <Select
-                  className="max-w-xs"
-                  label="Evento"
-                  selectedKeys={
-                    selectedDevice.evento ? [selectedDevice.evento] : []
-                  }
-                  onSelectionChange={(keys) =>
-                    setSelectedDevice({
-                      ...selectedDevice,
-                      evento: Array.from(keys)[0] as string,
-                    })
-                  }
-                >
-                  {eventos.map((evento) => (
-                    <SelectItem key={evento.key}>{evento.label}</SelectItem>
-                  ))}
-                </Select>
+                <Button color="secondary" onPress={getGeolocation}>
+                  Obtener Ubicación
+                </Button>
               </div>
-            )}
+              {geoError && <p className="text-red-500">{geoError}</p>}
+              <Select
+                className="max-w-xs"
+                label="Evento"
+                selectedKeys={evento ? [evento] : []}
+                onSelectionChange={(keys) =>
+                  setEvento(Array.from(keys)[0] as string)
+                }
+              >
+                {eventos.map((evento) => (
+                  <SelectItem key={evento.key}>{evento.label}</SelectItem>
+                ))}
+              </Select>
+            </div>
           </ModalBody>
           <ModalFooter>
             <Button color="danger" variant="light" onPress={handleModalClose}>
               Cancelar
             </Button>
-            <Button color="primary" onPress={actualizarDispositivo}>
-              Guardar
+            <Button color="primary" onPress={registrarDispositivo}>
+              Registrar
             </Button>
           </ModalFooter>
         </ModalContent>
       </Modal>
 
-      {/* Modal de Nuevo Evento */}
       <Modal isOpen={isNewEventModalOpen} onClose={handleModalClose}>
         <ModalContent>
           <ModalHeader>Nuevo Registro de Evento</ModalHeader>
@@ -679,6 +554,33 @@ export default function Home() {
             </Button>
             <Button color="primary" onPress={registrarNuevoEvento}>
               Registrar Evento
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      <Modal isOpen={isQrModalOpen} onClose={handleModalClose}>
+        <ModalContent>
+          <ModalHeader>Código QR del Dispositivo</ModalHeader>
+          <ModalBody>
+            {qrUrl && (
+              <div className="flex flex-col items-center gap-4">
+                <img alt="QR Code" className="w-48 h-48" src={qrUrl} />
+                <a
+                  className="text-blue-500 underline"
+                  download={`qr-${selectedDevice?.id || "device"}.png`}
+                  href={qrUrl}
+                >
+                  <Button color="primary" size="sm">
+                    Descargar QR
+                  </Button>
+                </a>
+              </div>
+            )}
+          </ModalBody>
+          <ModalFooter>
+            <Button color="danger" variant="light" onPress={handleModalClose}>
+              Cerrar
             </Button>
           </ModalFooter>
         </ModalContent>
