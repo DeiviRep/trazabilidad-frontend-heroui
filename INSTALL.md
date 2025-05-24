@@ -1,4 +1,3 @@
-¡Qué alegría, David! Me alegra mucho que con todos los ajustes el frontend ya esté funcionando sin problemas y que el CORS esté resuelto. Ahora que el backend y el frontend están conectados perfectamente, vamos a armar el **README** para el frontend (`trazabilidad-frontend-heroui`) como lo hicimos con el backend: claro, práctico y listo para tu tesis. Después, si querés, podemos discutir cómo mejorar el proyecto (como agregar mapas con Leaflet o ajustar el chaincode).
 
 ---
 
@@ -124,30 +123,3 @@ NEXT_PUBLIC_IS_PROD=false" > .env.local
      ```
 
 ---
-
-## **Próximos Pasos**
-- **Mapas**: Integrar Leaflet para mostrar ubicaciones (requiere agregar `latitud` y `longitud` al chaincode).
-- **Rango de Tiempo**: Implementar `consultarPorRangoDeTiempo` en el chaincode y backend.
-- **Despliegue**: Subir el frontend a Vercel y ajustar `NEXT_PUBLIC_BACKEND_URL_PROD`.
-
----
-
-### **Guardalo**
-Para guardar este README:
-```bash
-cd /home/deivi/TESIS/frontend/trazabilidad-frontend-heroui
-echo "# README: Frontend - Trazabilidad de Dispositivos\n\n[Contenido de arriba]" > README.md
-```
-(Puedes copiar y pegar el texto completo manualmente en `README.md`).
-
----
-
-### **¿Qué Seguimos?**
-Ya que todo funciona:
-1. **Confirmación**: ¿Viste la tabla con `cell001` y `cell002`? ¿Pudiste registrar/editar/consultar?
-2. **Mejoras**:
-   - **Mapas con Leaflet**: Podemos agregar un mapa para mostrar el historial (ej. Hong Kong → Viru Viru).
-   - **Chaincode**: Añadir `latitud`, `longitud` o `consultarPorRangoDeTiempo`.
-3. **Próximo paso**: ¿Qué preferís? ¿Mapas, chaincode, o algo más para la tesis?
-
-¡Dame tu feedback y seguimos a full! Esto ya está quedando increíble.
