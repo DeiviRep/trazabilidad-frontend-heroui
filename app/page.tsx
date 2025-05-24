@@ -28,7 +28,6 @@ import {
   ModalFooter,
 } from "@heroui/modal";
 import axios from "axios";
-import L from "leaflet";
 
 export default function Home() {
   const URL_BACKEND_PROD = process.env.NEXT_PUBLIC_BACKEND_URL_PROD;
@@ -226,23 +225,29 @@ export default function Home() {
   };
 
   // Inicializar y limpiar el mapa
-  const initializeMap = (deviceId: string, lat: number, lng: number) => {
+  const initializeMap = async (deviceId: string, lat: number, lng: number) => {
     console.log(`Intentando inicializar mapa para ${deviceId}`);
+
     if (!mapRefs.current[deviceId]) {
       const mapContainer = document.getElementById(`map-${deviceId}`);
 
       if (mapContainer) {
         console.log(`Contenedor encontrado para ${deviceId}`);
+
+        // Cargar Leaflet dinámicamente (solo en el cliente)
+        const L = await import("leaflet");
         const map = L.map(mapContainer).setView([lat, lng], 13);
 
         L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
           attribution:
             '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
         }).addTo(map);
+
         L.marker([lat, lng])
           .addTo(map)
           .bindPopup(`<b>${deviceId}</b>`)
           .openPopup();
+
         mapRefs.current[deviceId] = map;
         console.log(`Mapa inicializado para ${deviceId}`);
       } else {
@@ -588,3 +593,5 @@ export default function Home() {
     </section>
   );
 }
+
+export const dynamic = "force-dynamic";
