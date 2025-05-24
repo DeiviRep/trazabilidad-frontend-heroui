@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 "use client";
 
 import React, { useEffect, useRef } from "react";
@@ -25,7 +26,7 @@ export default function Historial({
 
   const params = React.use(paramsPromise);
   const [historial, setHistorial] = React.useState<any[]>([]);
-  const [qrUrl, setQrUrl] = React.useState<string>("");
+  // const [qrUrl, setQrUrl] = React.useState<string>("");
   const mapRef = useRef<L.Map | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
 
@@ -36,11 +37,11 @@ export default function Historial({
       );
 
       setHistorial(response.data);
-      const qrResponse = await axios.get(
-        `${BASE_URL}/trazabilidad/qr/${params.id}`,
-      );
+      // const qrResponse = await axios.get(
+      //   `${BASE_URL}/trazabilidad/qr/${params.id}`,
+      // );
 
-      setQrUrl(qrResponse.data.qrUrl);
+      // setQrUrl(qrResponse.data.qrUrl);
 
       if (response.data.length > 0 && mapContainerRef.current) {
         const ubicaciones = response.data.map((entrada: any) => {
@@ -93,8 +94,8 @@ export default function Historial({
           mapRef.current.fitBounds(bounds);
         }
       }
-    } catch (error) {
-      console.error("Error al consultar historial:", error);
+    } catch (e) {
+      console.error("Error al consultar historial:", e);
     }
   };
 

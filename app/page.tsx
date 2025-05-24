@@ -336,10 +336,10 @@ export default function Home() {
           </TableHeader>
           <TableBody>
             {dispositivos.map((dispositivo, index) => {
-              const [lat, lng] = dispositivo.ubicacion
-                .split(",")
-                .map((coord: string) => parseFloat(coord.trim()));
-              const isValidCoords = !isNaN(lat) && !isNaN(lng);
+              // const [lat, lng] = dispositivo.ubicacion
+              //   .split(",")
+              //   .map((coord: string) => parseFloat(coord.trim()));
+              // const isValidCoords = !isNaN(lat) && !isNaN(lng);
               const deviceId = dispositivo.id;
 
               // Actualizar estado del tooltip
