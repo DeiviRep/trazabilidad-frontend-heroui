@@ -26,80 +26,23 @@ export default function Historial({
 
   const params = React.use(paramsPromise);
   const [historial, setHistorial] = React.useState<any[]>([]);
-  // const [qrUrl, setQrUrl] = React.useState<string>("");
   const mapRef = useRef<L.Map | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
 
-  const fetchHistorial = async () => {
-    try {
-      const response = await axios.get(
-        `${BASE_URL}/trazabilidad/historial/${params.id}`,
-      );
-
-      setHistorial(response.data);
-      // const qrResponse = await axios.get(
-      //   `${BASE_URL}/trazabilidad/qr/${params.id}`,
-      // );
-
-      // setQrUrl(qrResponse.data.qrUrl);
-
-      if (response.data.length > 0 && mapContainerRef.current) {
-        const ubicaciones = response.data.map((entrada: any) => {
-          const [lat, lng] = entrada.ubicacion.split(",").map(parseFloat);
-
-          return [lat, lng] as [number, number];
-        });
-
-        if (!mapRef.current) {
-          mapRef.current = L.map(mapContainerRef.current).setView(
-            ubicaciones[0],
-            13,
-          );
-          L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-            attribution:
-              '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-          }).addTo(mapRef.current);
-        }
-
-        mapRef.current.eachLayer((layer) => {
-          if (layer instanceof L.Marker || layer instanceof L.Polyline) {
-            mapRef.current?.removeLayer(layer);
-          }
-        });
-
-        // Agregar marcadores numerados
-        response.data.forEach((entrada: any, index: number) => {
-          const [lat, lng] = entrada.ubicacion.split(",").map(parseFloat);
-
-          L.marker([lat, lng])
-            .addTo(mapRef.current!)
-            .bindPopup(
-              `<b>${index + 1}. ${entrada.evento}</b><br>ID: ${params.id}<br>Ubicación: ${entrada.ubicacion}<br>Fecha: ${entrada.timestamp}`,
-            )
-            .bindTooltip(`${index + 1}`, {
-              permanent: true,
-              direction: "center",
-              className: "leaflet-tooltip-number",
-            });
-        });
-
-        // Agregar polilínea con flechas para el recorrido
-        L.polyline(ubicaciones, { color: "blue", weight: 4 }).addTo(
-          mapRef.current!,
+  // Obtener datos
+  useEffect(() => {
+    const fetchHistorial = async () => {
+      try {
+        const response = await axios.get(
+          `${BASE_URL}/trazabilidad/historial/${params.id}`,
         );
 
-        if (ubicaciones.length > 1) {
-          const bounds = L.latLngBounds(ubicaciones);
-
-          mapRef.current.fitBounds(bounds);
-        }
+        setHistorial(response.data);
+      } catch (e) {
+        console.error("Error al consultar historial:", e);
       }
-    } catch (e) {
-      console.error("Error al consultar historial:", e);
-    }
-  };
+    };
 
-  useEffect(() => {
     fetchHistorial();
 
     return () => {
@@ -109,6 +52,61 @@ export default function Historial({
       }
     };
   }, [params.id]);
+
+  // Inicializar y actualizar mapa cuando historial cambia
+  useEffect(() => {
+    if (historial.length > 0 && mapContainerRef.current) {
+      const ubicaciones = historial.map((entrada: any) => {
+        const [lat, lng] = entrada.ubicacion.split(",").map(parseFloat);
+
+        return [lat, lng] as [number, number];
+      });
+
+      if (!mapRef.current) {
+        mapRef.current = L.map(mapContainerRef.current).setView(
+          ubicaciones[0],
+          13,
+        );
+        L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          attribution:
+            '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        }).addTo(mapRef.current);
+      }
+
+      mapRef.current.eachLayer((layer) => {
+        if (layer instanceof L.Marker || layer instanceof L.Polyline) {
+          mapRef.current?.removeLayer(layer);
+        }
+      });
+
+      // Agregar marcadores numerados
+      historial.forEach((entrada: any, index: number) => {
+        const [lat, lng] = entrada.ubicacion.split(",").map(parseFloat);
+
+        L.marker([lat, lng])
+          .addTo(mapRef.current!)
+          .bindPopup(
+            `<b>${index + 1}. ${entrada.evento}</b><br>ID: ${params.id}<br>Ubicación: ${entrada.ubicacion}<br>Fecha: ${entrada.timestamp}`,
+          )
+          .bindTooltip(`${index + 1}`, {
+            permanent: true,
+            direction: "center",
+            className: "leaflet-tooltip-number",
+          });
+      });
+
+      // Agregar polilínea
+      L.polyline(ubicaciones, { color: "blue", weight: 4 }).addTo(
+        mapRef.current!,
+      );
+
+      if (ubicaciones.length > 1) {
+        const bounds = L.latLngBounds(ubicaciones);
+
+        mapRef.current.fitBounds(bounds);
+      }
+    }
+  }, [historial, params.id]);
 
   return (
     <section className="flex flex-col items-center justify-center gap-4 py-8 md:py-10">
