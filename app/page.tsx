@@ -65,7 +65,6 @@ export default function Home() {
     [key: string]: boolean;
   }>({});
 
-  // Referencias para mapas dinámicos en tooltips
   const mapRefs = useRef<{ [key: string]: L.Map | null }>({});
 
   const eventos = [
@@ -224,17 +223,11 @@ export default function Home() {
     clearForm();
   };
 
-  // Inicializar y limpiar el mapa
   const initializeMap = async (deviceId: string, lat: number, lng: number) => {
-    console.log(`Intentando inicializar mapa para ${deviceId}`);
-
     if (!mapRefs.current[deviceId]) {
       const mapContainer = document.getElementById(`map-${deviceId}`);
 
       if (mapContainer) {
-        console.log(`Contenedor encontrado para ${deviceId}`);
-
-        // Cargar Leaflet dinámicamente (solo en el cliente)
         const L = await import("leaflet");
         const map = L.map(mapContainer).setView([lat, lng], 13);
 
@@ -242,16 +235,11 @@ export default function Home() {
           attribution:
             '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
         }).addTo(map);
-
         L.marker([lat, lng])
           .addTo(map)
           .bindPopup(`<b>${deviceId}</b>`)
           .openPopup();
-
         mapRefs.current[deviceId] = map;
-        console.log(`Mapa inicializado para ${deviceId}`);
-      } else {
-        console.log(`Contenedor no encontrado para ${deviceId}`);
       }
     }
   };
@@ -260,7 +248,6 @@ export default function Home() {
     if (mapRefs.current[deviceId]) {
       mapRefs.current[deviceId]?.remove();
       mapRefs.current[deviceId] = null;
-      console.log(`Mapa eliminado para ${deviceId}`);
     }
   };
 
@@ -273,13 +260,11 @@ export default function Home() {
       const dispositivo = dispositivos.find((d) => d.id === deviceId);
 
       if (!dispositivo) return;
-
       const [lat, lng] = dispositivo.ubicacion
         .split(",")
         .map((coord: string) => parseFloat(coord.trim()));
-      const isValidCoords = !isNaN(lat) && !isNaN(lng);
 
-      if (isOpen && isValidCoords) {
+      if (isOpen && !isNaN(lat) && !isNaN(lng)) {
         initializeMap(deviceId, lat, lng);
       } else if (!isOpen && mapRefs.current[deviceId]) {
         cleanupMap(deviceId);
@@ -322,63 +307,38 @@ export default function Home() {
           aria-label="Tabla de dispositivos"
           className="min-w-[600px]"
           color="default"
-          defaultSelectedKeys={["0"]}
-          selectionMode="single"
         >
           <TableHeader>
-            <TableColumn className="w-1/6">ID</TableColumn>
-            <TableColumn className="w-1/6">Modelo</TableColumn>
-            <TableColumn className="w-1/6">Marca</TableColumn>
-            <TableColumn className="w-1/6">Ubicación</TableColumn>
-            <TableColumn className="w-1/6">Evento</TableColumn>
-            <TableColumn className="w-1/6">Timestamp</TableColumn>
-            <TableColumn className="w-1/6">Acciones</TableColumn>
+            <TableColumn>ID</TableColumn>
+            <TableColumn>Modelo</TableColumn>
+            <TableColumn>Marca</TableColumn>
+            <TableColumn>Ubicación</TableColumn>
+            <TableColumn>Evento</TableColumn>
+            <TableColumn>Timestamp</TableColumn>
+            <TableColumn>Acciones</TableColumn>
           </TableHeader>
           <TableBody>
             {dispositivos.map((dispositivo, index) => {
-              // const [lat, lng] = dispositivo.ubicacion
-              //   .split(",")
-              //   .map((coord: string) => parseFloat(coord.trim()));
-              // const isValidCoords = !isNaN(lat) && !isNaN(lng);
               const deviceId = dispositivo.id;
-
-              // Actualizar estado del tooltip
               const handleOpenChange = (open: boolean) => {
                 setTooltipStates((prev) => ({ ...prev, [deviceId]: open }));
               };
 
               return (
-                <TableRow
-                  key={index}
-                  onClick={() => openQrModal(dispositivo.id)}
-                >
-                  <TableCell className="truncate max-w-[100px]">
-                    {dispositivo.id}
-                  </TableCell>
-                  <TableCell className="truncate max-w-[100px]">
-                    {dispositivo.modelo}
-                  </TableCell>
-                  <TableCell className="truncate max-w-[100px]">
-                    {dispositivo.marca}
-                  </TableCell>
-                  <TableCell className="truncate max-w-[100px]">
+                <TableRow key={index}>
+                  <TableCell>{dispositivo.id}</TableCell>
+                  <TableCell>{dispositivo.modelo}</TableCell>
+                  <TableCell>{dispositivo.marca}</TableCell>
+                  <TableCell>
                     <Tooltip
                       content={
                         <div
-                          className="w-[340px] h-[240px] py-2 px-1 shadow-md rounded-lg"
-                          style={{
-                            position: "relative",
-                            boxSizing: "border-box",
-                          }}
+                          className="w-[340px] h-[240px]"
+                          style={{ position: "relative" }}
                         >
                           <div
                             id={`map-${deviceId}`}
-                            style={{
-                              width: "100%",
-                              height: "100%",
-                              // borderRadius: "2",
-                              overflow: "hidden",
-                            }}
+                            style={{ width: "100%", height: "100%" }}
                           />
                         </div>
                       }
@@ -390,12 +350,8 @@ export default function Home() {
                       </Chip>
                     </Tooltip>
                   </TableCell>
-                  <TableCell className="truncate max-w-[100px]">
-                    {dispositivo.evento}
-                  </TableCell>
-                  <TableCell className="truncate max-w-[100px]">
-                    {dispositivo.timestamp}
-                  </TableCell>
+                  <TableCell>{dispositivo.evento}</TableCell>
+                  <TableCell>{dispositivo.timestamp}</TableCell>
                   <TableCell>
                     <div className="flex gap-2 flex-wrap">
                       <Button
@@ -414,6 +370,13 @@ export default function Home() {
                           Ver Historial
                         </Button>
                       </a>
+                      <Button
+                        color="primary"
+                        size="sm"
+                        onPress={() => openQrModal(dispositivo.id)}
+                      >
+                        Ver QR
+                      </Button>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -422,6 +385,9 @@ export default function Home() {
           </TableBody>
         </Table>
       </Card>
+
+      {/* Aquí continúan tus modales (Crear, Nuevo Evento, Ver QR) */}
+      {/* Todo igual que antes */}
 
       <Modal isOpen={isCreateModalOpen} onClose={handleModalClose}>
         <ModalContent>
